@@ -32,7 +32,7 @@ re-evaluated. The corridor is progressively widened if the search fails.
 
 ![Coarse-graph search success on synthetic narrow-passage maps](figures/fig14_narrow_passage.png)
 
-**Fig. 14.** Synthetic narrow-passage search outcomes. (a) CGA\*; (b) CGA\* non-split; (c) first observed failure factor versus passage width. Check marks and crosses indicate successful and failed coarse searches, respectively. The dashed red indicator denotes no observed failure for CGA\* among the tested factors and does not represent a measured critical value.
+**Fig. 14 (from the manuscript).** Synthetic narrow-passage search outcomes. (a) CGA\*; (b) CGA\* non-split; (c) first observed failure factor versus passage width. Check marks and crosses indicate successful and failed coarse searches, respectively. The dashed red indicator denotes no observed failure for CGA\* among the tested factors and does not represent a measured critical value.
 
 *Success refers to the coarse-graph search only; it is not the success rate of final route planning.*
 
@@ -40,35 +40,31 @@ re-evaluated. The corridor is progressively widened if the search fails.
 
 ![Planning time, path cost, visited nodes and peak memory across map scales](figures/fig16_scale_adaptability.png)
 
-**Fig. 16.** Scale adaptability. (a) Median paired planning-time changes relative to FA\*. (b) Median paired composite-cost changes relative to FA\*. (c) Median visited-vertex counts. (d) Median peak memory. Error bars in (a) and (b) indicate bootstrap 95% confidence intervals; open markers denote the single matched pair at scale 10000. Panel (c) and (d) summarize successful runs.
+**Fig. 16 (from the manuscript).** Scale adaptability. (a) Median paired planning-time changes relative to FA\*. (b) Median paired composite-cost changes relative to FA\*. (c) Median visited-vertex counts. (d) Median peak memory. Error bars in (a) and (b) indicate bootstrap 95% confidence intervals; open markers denote the single matched pair at scale 10000. Panels (c) and (d) summarize successful runs.
 
 ---
 
 ## Demonstration
 
-`demo/demo_component_graph.py` illustrates the coarse representation used by
-CGA\* on a synthetic 192 x 192 map that contains a one-cell-wide passage. It
-splits each `R x R` block into its eight-connected passable components, connects
-components of neighbouring blocks through original-grid adjacency, and compares
-the outcome with a whole-block rule that keeps a block only if it is fully
-passable.
+`demo/demo_component_graph.py` runs the component-graph A* search on a synthetic
+192 x 192 map with a wall and a single narrow opening. Its block-local component
+construction, original-grid adjacency, search state, heuristic, terrain cost,
+and A* traversal follow the corresponding routines in the manuscript code.
+SA-Planner's adaptive resolution selection and CB-Refiner are not included.
 
 ```bash
-pip install -r requirements.txt
-cd demo
-python demo_component_graph.py --R 8
+python -m pip install -r requirements.txt
+python demo/demo_component_graph.py --R 10
 ```
 
-The script prints the number of vertices and edges, the number of connected
-groups obtained with the two representations, and writes
-`demo_component_graph.png`.
+The script reports search success, path length, visited components, and whether
+the route uses the opening. It writes `demo_component_graph.png`, showing the
+component labels and searched route. The default start and goal are on opposite
+sides of the wall.
 
-With the default settings, the component graph keeps the map connected, whereas
-the whole-block rule splits it into two groups because the one-cell passage lies
-inside a mixed block. The demonstration does not run the planner; it only shows
-how connectivity is preserved during aggregation.
-
-The bundled sample is synthetic demonstration data, not an experimental dataset. The whole-block baseline below is a conservative illustration, not the manuscript's CGA* non-split implementation.
+The bundled map is synthetic demonstration data, not an experimental dataset.
+This focused example exercises the coarse component-graph search only; it is not
+a reproduction of the manuscript's full planning pipeline or experiments.
 
 ## Status
 
