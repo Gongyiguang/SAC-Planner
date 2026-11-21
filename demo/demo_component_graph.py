@@ -140,8 +140,34 @@ def astar(start_gid, goal_gid, goal_pixel, module_of, local_label, centroids,
     return None, len(closed)
 
 
+def recover_grid_path(passable, labels, allowed_gids, start, goal):
+    """Recover adjacent free cells inside the components selected by A*."""
+    allowed = np.isin(labels, list(allowed_gids)) & passable
+    offsets = [(dr, dc) for dr in (-1, 0, 1)
+               for dc in (-1, 0, 1) if dr or dc]
+    queue, head = [start], 0
+    parent = {start: None}
+    while head < len(queue):
+        row, col = queue[head]
+        head += 1
+        if (row, col) == goal:
+            path = []
+            cell = goal
+            while cell is not None:
+                path.append(cell)
+                cell = parent[cell]
+            return np.asarray(path[::-1], dtype=np.int32)
+        for dr, dc in offsets:
+            nxt = row + dr, col + dc
+            nr, nc = nxt
+            if (0 <= nr < allowed.shape[0] and 0 <= nc < allowed.shape[1]
+                    and allowed[nr, nc] and nxt not in parent):
+                parent[nxt] = (row, col)
+                queue.append(nxt)
+    raise RuntimeError('Could not recover a free-cell route within the A* components')
+
+
 def main():
-    global GOAL_PIXEL
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--R', type=int, default=10)
     parser.add_argument('--map', type=Path, default=Path(__file__).with_name('sample_map.npz'))
@@ -154,61 +180,73 @@ def main():
                                       ('dem', 'slope', 'landcovercost', 'obstaclemask'))
     passable = ~obstacles
     height, width = passable.shape
-    start_pixel, GOAL_PIXEL = (height // 2, width // 6), (height // 2, 5 * width // 6)
+    start_pixel, goal_pixel = (height // 2, width // 6), (height // 2, 5 * width // 6)
     labels, modules, local, centers, adjacency = build_components(passable, args.R)
-    start_gid, goal_gid = int(labels[start_pixel]), int(labels[GOAL_PIXEL])
+    start_gid, goal_gid = int(labels[start_pixel]), int(labels[goal_pixel])
     if start_gid < 0 or goal_gid < 0:
         parser.error('start or goal falls on an obstacle')
-    path, visited = astar(start_gid, goal_gid, GOAL_PIXEL, modules, local, centers,
+    path, visited = astar(start_gid, goal_gid, goal_pixel, modules, local, centers,
                           adjacency, args.R, dem, slope, lcc)
     if path is None:
         raise SystemExit('CGA* component-graph search failed')
     path_gids = set(path)
-    path_pixels = np.isin(labels, path) & passable
+    pixel_path = recover_grid_path(passable, labels, path_gids,
+                                   start_pixel, goal_pixel)
+    if (tuple(pixel_path[0]) != start_pixel
+            or tuple(pixel_path[-1]) != goal_pixel
+            or not passable[pixel_path[:, 0], pixel_path[:, 1]].all()):
+        raise RuntimeError('Recovered route endpoints or traversability check failed')
+    steps = np.diff(pixel_path, axis=0)
+    if len(steps) and np.any(np.max(np.abs(steps), axis=1) != 1):
+        raise RuntimeError('Recovered route contains non-adjacent grid cells')
     gate_slice = slice(width // 2 - 2, width // 2 + 2)
-    if not (path_pixels[:, gate_slice] & passable[:, gate_slice]).any():
+    if not np.any((pixel_path[:, 1] >= gate_slice.start)
+                  & (pixel_path[:, 1] < gate_slice.stop)):
         raise SystemExit('Search succeeded but its route does not pass through the gate')
+    if np.any(obstacles[pixel_path[:, 0], pixel_path[:, 1]]):
+        raise RuntimeError('Recovered route intersects an obstacle')
     print(f'block size R       : {args.R}')
-    print(f'start / goal       : {start_pixel} -> {GOAL_PIXEL}')
+    print(f'start / goal       : {start_pixel} -> {goal_pixel}')
     print(f'coarse search      : success')
     print(f'path components    : {len(path)}')
     print(f'visited components : {visited}')
+    print(f'grid path cells    : {len(pixel_path)}')
+    print(f'start / goal reached: yes')
     print(f'gate used          : yes')
 
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    from matplotlib.collections import LineCollection
     rgb = np.full((*labels.shape, 3), 0.12)
     colors = np.random.default_rng(0).random((len(centers), 3)) * 0.65 + 0.3
     center_array = np.asarray([centers[g] for g in range(len(centers))])
     rgb[passable] = colors[labels[passable]]
     fig, axes = plt.subplots(1, 3, figsize=(17, 6), constrained_layout=True)
     axes[0].imshow(rgb, interpolation='nearest')
-    axes[0].imshow(path_pixels, cmap='autumn', alpha=.32, vmin=0, vmax=1)
-    axes[0].set_title('Block-local components and CGA* path')
+    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4)
+    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2)
+    axes[0].set_title('Components and recovered free-cell route')
     axes[0].set_xticks(np.arange(-.5, width, args.R), minor=True)
     axes[0].set_yticks(np.arange(-.5, height, args.R), minor=True)
     axes[0].grid(which='minor', color='black', alpha=.2, linewidth=.4)
     axes[1].imshow(labels < 0, cmap='gray_r', vmin=0, vmax=1)
-    segments = [[centers[u][::-1], centers[v][::-1]] for u in path
-                for v in adjacency[u] if v in path_gids and u < v]
-    axes[1].add_collection(LineCollection(segments, colors='#f28e2b', linewidths=2.2))
     if len(center_array):
         axes[1].scatter(center_array[:, 1], center_array[:, 0], s=6,
                          c='#9ca3af', zorder=2)
-    path_centers = np.asarray([centers[g] for g in path])
-    axes[1].plot(path_centers[:, 1], path_centers[:, 0], color='#e53935',
-                 linewidth=2, marker='o', markersize=3, zorder=4)
-    axes[1].scatter([start_pixel[1], GOAL_PIXEL[1]], [start_pixel[0], GOAL_PIXEL[0]],
+    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4,
+                 zorder=4)
+    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2,
+                 zorder=5)
+    axes[1].scatter([start_pixel[1], goal_pixel[1]], [start_pixel[0], goal_pixel[0]],
                     c=['#00a65a', '#2446a8'], s=48, edgecolors='white', zorder=5)
     axes[1].annotate('Start', (start_pixel[1], start_pixel[0]), xytext=(5, -12),
                      textcoords='offset points', color='#087443', fontsize=9)
-    axes[1].annotate('Goal', (GOAL_PIXEL[1], GOAL_PIXEL[0]), xytext=(-28, -12),
+    axes[1].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(-28, -12),
                      textcoords='offset points', color='#2446a8', fontsize=9)
-    axes[1].set_title('CGA* component-graph search path')
+    axes[1].set_title('Grid route within A* path components')
     axes[2].imshow(rgb, interpolation='nearest')
-    axes[2].imshow(path_pixels, cmap='autumn', alpha=.38, vmin=0, vmax=1)
+    axes[2].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4)
+    axes[2].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2)
     half = 22
     rlo, rhi = max(0, height // 2 - half), min(height, height // 2 + half)
     clo, chi = max(0, width // 2 - half), min(width, width // 2 + half)
@@ -228,5 +266,4 @@ def main():
 
 
 if __name__ == '__main__':
-    GOAL_PIXEL = (0, 0)
     main()

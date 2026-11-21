@@ -57,10 +57,12 @@ python -m pip install -r requirements.txt
 python demo/demo_component_graph.py --R 10
 ```
 
-The script reports search success, path length, visited components, and whether
-the route uses the opening. It writes `demo_component_graph.png`, showing the
-component labels and searched route. The default start and goal are on opposite
-sides of the wall.
+The script reports search success, visited components, and grid-route checks.
+After A* selects a component sequence, it recovers a pixel route within those
+selected components for display; this route starts and ends at the marked cells
+and is checked against obstacles. This display reconstruction is not
+CB-Refiner. The output `demo_component_graph.png` shows the route and a passage
+detail. The default start and goal are on opposite sides of the wall.
 
 The bundled map is synthetic demonstration data, not an experimental dataset.
 This focused example exercises the coarse component-graph search only; it is not
