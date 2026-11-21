@@ -58,11 +58,12 @@ python demo/demo_component_graph.py --R 10
 ```
 
 The script reports search success, visited components, and grid-route checks.
-After A* selects a component sequence, it recovers a pixel route within those
-selected components for display; this route starts and ends at the marked cells
-and is checked against obstacles. This display reconstruction is not
-CB-Refiner. The output `demo_component_graph.png` shows the route and a passage
-detail. The default start and goal are on opposite sides of the wall.
+After A* selects a component sequence, it recovers a shortest pixel route within
+those selected components, preferring straighter routes when lengths tie. The
+route starts and ends at the marked cells and is checked against obstacles. This
+display reconstruction is not CB-Refiner. The output
+`demo_component_graph.png` shows the full route and a passage detail. The
+synthetic map uses flat terrain costs to keep the example focused on connectivity.
 
 The bundled map is synthetic demonstration data, not an experimental dataset.
 This focused example exercises the coarse component-graph search only; it is not

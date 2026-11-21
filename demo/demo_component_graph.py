@@ -141,15 +141,21 @@ def astar(start_gid, goal_gid, goal_pixel, module_of, local_label, centroids,
 
 
 def recover_grid_path(passable, labels, allowed_gids, start, goal):
-    """Recover adjacent free cells inside the components selected by A*."""
+    """Prefer a straight free-cell route inside the components selected by A*."""
     allowed = np.isin(labels, list(allowed_gids)) & passable
     offsets = [(dr, dc) for dr in (-1, 0, 1)
                for dc in (-1, 0, 1) if dr or dc]
-    queue, head = [start], 0
+    dr_goal, dc_goal = goal[0] - start[0], goal[1] - start[1]
+    length_sq = dr_goal * dr_goal + dc_goal * dc_goal or 1
+    frontier = [(0, 0.0, 0, start)]
+    serial = 0
     parent = {start: None}
-    while head < len(queue):
-        row, col = queue[head]
-        head += 1
+    best = {start: (0, 0.0)}
+    while frontier:
+        steps, deviation, _, cell = heapq.heappop(frontier)
+        if best.get(cell) != (steps, deviation):
+            continue
+        row, col = cell
         if (row, col) == goal:
             path = []
             cell = goal
@@ -161,9 +167,18 @@ def recover_grid_path(passable, labels, allowed_gids, start, goal):
             nxt = row + dr, col + dc
             nr, nc = nxt
             if (0 <= nr < allowed.shape[0] and 0 <= nc < allowed.shape[1]
-                    and allowed[nr, nc] and nxt not in parent):
-                parent[nxt] = (row, col)
-                queue.append(nxt)
+                    and allowed[nr, nc]):
+                projection = ((nr - start[0]) * dr_goal
+                              + (nc - start[1]) * dc_goal) / length_sq
+                ideal_row = start[0] + projection * dr_goal
+                ideal_col = start[1] + projection * dc_goal
+                next_cost = (steps + 1, deviation
+                             + abs(nr - ideal_row) + abs(nc - ideal_col))
+                if next_cost < best.get(nxt, (float('inf'), float('inf'))):
+                    best[nxt] = next_cost
+                    parent[nxt] = cell
+                    serial += 1
+                    heapq.heappush(frontier, (*next_cost, serial, nxt))
     raise RuntimeError('Could not recover a free-cell route within the A* components')
 
 
@@ -218,49 +233,42 @@ def main():
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     rgb = np.full((*labels.shape, 3), 0.12)
-    colors = np.random.default_rng(0).random((len(centers), 3)) * 0.65 + 0.3
-    center_array = np.asarray([centers[g] for g in range(len(centers))])
+    palette = plt.get_cmap('tab20').colors
+    colors = np.asarray([.62 + .38 * np.asarray(palette[g % len(palette)])
+                         for g in range(len(centers))])
     rgb[passable] = colors[labels[passable]]
-    fig, axes = plt.subplots(1, 3, figsize=(17, 6), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
     axes[0].imshow(rgb, interpolation='nearest')
     axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4)
-    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2)
-    axes[0].set_title('Components and recovered free-cell route')
+    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='#d62728', linewidth=2.2)
+    axes[0].scatter([start_pixel[1], goal_pixel[1]], [start_pixel[0], goal_pixel[0]],
+                    c=['#16834a', '#2446a8'], s=52, edgecolors='white', zorder=5)
+    axes[0].annotate('Start', (start_pixel[1], start_pixel[0]), xytext=(5, -14),
+                     textcoords='offset points', color='#087443', fontsize=9)
+    axes[0].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(-30, -14),
+                     textcoords='offset points', color='#2446a8', fontsize=9)
+    axes[0].set_title('Component map and start-to-goal route')
     axes[0].set_xticks(np.arange(-.5, width, args.R), minor=True)
     axes[0].set_yticks(np.arange(-.5, height, args.R), minor=True)
     axes[0].grid(which='minor', color='black', alpha=.2, linewidth=.4)
-    axes[1].imshow(labels < 0, cmap='gray_r', vmin=0, vmax=1)
-    if len(center_array):
-        axes[1].scatter(center_array[:, 1], center_array[:, 0], s=6,
-                         c='#9ca3af', zorder=2)
-    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4,
-                 zorder=4)
-    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2,
-                 zorder=5)
-    axes[1].scatter([start_pixel[1], goal_pixel[1]], [start_pixel[0], goal_pixel[0]],
-                    c=['#00a65a', '#2446a8'], s=48, edgecolors='white', zorder=5)
-    axes[1].annotate('Start', (start_pixel[1], start_pixel[0]), xytext=(5, -12),
-                     textcoords='offset points', color='#087443', fontsize=9)
-    axes[1].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(-28, -12),
-                     textcoords='offset points', color='#2446a8', fontsize=9)
-    axes[1].set_title('Grid route within A* path components')
-    axes[2].imshow(rgb, interpolation='nearest')
-    axes[2].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4)
-    axes[2].plot(pixel_path[:, 1], pixel_path[:, 0], color='#e53935', linewidth=2)
+    axes[1].imshow(rgb, interpolation='nearest')
+    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=5)
+    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='#d62728', linewidth=2.5)
     half = 22
     rlo, rhi = max(0, height // 2 - half), min(height, height // 2 + half)
     clo, chi = max(0, width // 2 - half), min(width, width // 2 + half)
-    axes[2].set_title('Passage detail: components and path')
-    axes[2].set_xlim(clo - .5, chi - .5)
-    axes[2].set_ylim(rhi - .5, rlo - .5)
-    axes[2].set_xticks(np.arange(clo - .5, chi, args.R), minor=True)
-    axes[2].set_yticks(np.arange(rlo - .5, rhi, args.R), minor=True)
-    axes[2].grid(which='minor', color='black', alpha=.3, linewidth=.5)
-    axes[2].set(xlabel='Column', ylabel='Row')
-    for ax in axes[:2]:
+    axes[1].set_title('Narrow-passage detail')
+    axes[1].set_xlim(clo - .5, chi - .5)
+    axes[1].set_ylim(rhi - .5, rlo - .5)
+    axes[1].set_xticks(np.arange(clo - .5, chi, args.R), minor=True)
+    axes[1].set_yticks(np.arange(rlo - .5, rhi, args.R), minor=True)
+    axes[1].grid(which='minor', color='black', alpha=.3, linewidth=.5)
+    for ax in axes:
         ax.set(xlabel='Column', ylabel='Row', xlim=(-.5, width-.5),
                ylim=(height-.5, -.5))
         ax.set_aspect('equal')
+    axes[1].set_xlim(clo - .5, chi - .5)
+    axes[1].set_ylim(rhi - .5, rlo - .5)
     fig.savefig(args.output, dpi=160)
     plt.close(fig)
 
