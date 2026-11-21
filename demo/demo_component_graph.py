@@ -195,7 +195,8 @@ def main():
                                       ('dem', 'slope', 'landcovercost', 'obstaclemask'))
     passable = ~obstacles
     height, width = passable.shape
-    start_pixel, goal_pixel = (height // 2, width // 6), (height // 2, 5 * width // 6)
+    start_pixel = (height // 2, width // 2 - 32)
+    goal_pixel = (height // 2, width // 2 + 32)
     labels, modules, local, centers, adjacency = build_components(passable, args.R)
     start_gid, goal_gid = int(labels[start_pixel]), int(labels[goal_pixel])
     if start_gid < 0 or goal_gid < 0:
@@ -232,32 +233,34 @@ def main():
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    rgb = np.full((*labels.shape, 3), 0.12)
-    palette = plt.get_cmap('tab20').colors
-    colors = np.asarray([.62 + .38 * np.asarray(palette[g % len(palette)])
-                         for g in range(len(centers))])
-    rgb[passable] = colors[labels[passable]]
+    rgb = np.empty((*labels.shape, 3), dtype=float)
+    rgb[passable] = (0.98, 0.98, 0.96)
+    rgb[obstacles] = (0.42, 0.43, 0.43)
     fig, axes = plt.subplots(1, 2, figsize=(12, 6), constrained_layout=True)
     axes[0].imshow(rgb, interpolation='nearest')
-    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=4)
-    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='#d62728', linewidth=2.2)
-    axes[0].scatter([start_pixel[1], goal_pixel[1]], [start_pixel[0], goal_pixel[0]],
-                    c=['#16834a', '#2446a8'], s=52, edgecolors='white', zorder=5)
-    axes[0].annotate('Start', (start_pixel[1], start_pixel[0]), xytext=(5, -14),
-                     textcoords='offset points', color='#087443', fontsize=9)
-    axes[0].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(-30, -14),
-                     textcoords='offset points', color='#2446a8', fontsize=9)
-    axes[0].set_title('Component map and start-to-goal route')
+    axes[0].plot(pixel_path[:, 1], pixel_path[:, 0], color='#159447', linewidth=2)
+    axes[0].scatter(start_pixel[1], start_pixel[0], marker='o', c='#2563eb',
+                    s=42, edgecolors='white', zorder=5)
+    axes[0].scatter(goal_pixel[1], goal_pixel[0], marker='*', c='white',
+                    s=105, edgecolors='#159447', linewidths=1, zorder=5)
+    axes[0].annotate('Start', (start_pixel[1], start_pixel[0]), xytext=(5, -13),
+                     textcoords='offset points', color='#1d4ed8', fontsize=9)
+    axes[0].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(5, -13),
+                     textcoords='offset points', color='#13783a', fontsize=9)
+    axes[0].set_title('Coarse search path on the full map')
     axes[0].set_xticks(np.arange(-.5, width, args.R), minor=True)
     axes[0].set_yticks(np.arange(-.5, height, args.R), minor=True)
     axes[0].grid(which='minor', color='black', alpha=.2, linewidth=.4)
     axes[1].imshow(rgb, interpolation='nearest')
-    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='white', linewidth=5)
-    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='#d62728', linewidth=2.5)
-    half = 22
+    axes[1].plot(pixel_path[:, 1], pixel_path[:, 0], color='#159447', linewidth=2.2)
+    axes[1].scatter(start_pixel[1], start_pixel[0], marker='o', c='#2563eb',
+                    s=48, edgecolors='white', zorder=5)
+    axes[1].scatter(goal_pixel[1], goal_pixel[0], marker='*', c='white',
+                    s=115, edgecolors='#159447', linewidths=1.2, zorder=5)
+    half = 44
     rlo, rhi = max(0, height // 2 - half), min(height, height // 2 + half)
     clo, chi = max(0, width // 2 - half), min(width, width // 2 + half)
-    axes[1].set_title('Narrow-passage detail')
+    axes[1].set_title('Passage and nearby obstacles')
     axes[1].set_xlim(clo - .5, chi - .5)
     axes[1].set_ylim(rhi - .5, rlo - .5)
     axes[1].set_xticks(np.arange(clo - .5, chi, args.R), minor=True)
