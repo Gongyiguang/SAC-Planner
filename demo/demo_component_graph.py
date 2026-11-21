@@ -247,7 +247,7 @@ def main():
                      textcoords='offset points', color='#1d4ed8', fontsize=9)
     axes[0].annotate('Goal', (goal_pixel[1], goal_pixel[0]), xytext=(5, -13),
                      textcoords='offset points', color='#13783a', fontsize=9)
-    axes[0].set_title('Coarse search path on the full map')
+    axes[0].set_title('Recovered grid route on the full map')
     axes[0].set_xticks(np.arange(-.5, width, args.R), minor=True)
     axes[0].set_yticks(np.arange(-.5, height, args.R), minor=True)
     axes[0].grid(which='minor', color='black', alpha=.2, linewidth=.4)

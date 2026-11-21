@@ -48,10 +48,9 @@ re-evaluated. The corridor is progressively widened if the search fails.
 
 `demo/demo_component_graph.py` runs the component-graph A* search on a synthetic
 192 x 192 map with a wall, a single narrow opening, and isolated nearby
-obstacles. Flat synthetic costs keep the example focused on connectivity. The
-block-local component construction, original-grid adjacency, search state,
-heuristic, terrain cost, and A* traversal follow the corresponding routines in
-the manuscript code.
+obstacles. Flat synthetic costs keep the example focused on connectivity. This
+demonstration illustrates block-local component decomposition, original-grid
+adjacency, and A* search on the resulting component graph.
 SA-Planner's adaptive resolution selection and CB-Refiner are not included.
 
 ```bash
@@ -60,10 +59,10 @@ python demo/demo_component_graph.py --R 10
 ```
 
 The script reports search success, visited components, and grid-route checks.
-After A* selects a component sequence, it recovers a shortest pixel route within
-those selected components, preferring straighter routes when lengths tie. The
-route starts and ends at the marked cells and is checked against obstacles. This
-display reconstruction is not CB-Refiner. The output
+After A* selects a component sequence, the demo recovers a traversable grid route
+within the selected components for visualization. The route starts and ends at
+the marked cells and is checked against obstacles. This display reconstruction
+is not CB-Refiner. The output
 `demo_component_graph.png` shows the full route and a passage detail.
 
 The bundled map is synthetic demonstration data, not an experimental dataset.
