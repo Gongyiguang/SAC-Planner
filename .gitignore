@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.zip
+.DS_Store
+demo_component_graph.png
